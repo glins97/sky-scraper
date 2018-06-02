@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
@@ -11,133 +10,124 @@ import json
 import codecs
 import time
 import datetime
-driver = webdriver.Firefox()
-def replace_month(string):
-    string = string.replace(' de jan', '/01')
-    string = string.replace(' de fev', '/02')
-    string = string.replace(' de mar', '/03')
-    string = string.replace(' de abr', '/04')
-    string = string.replace(' de mai', '/05')
-    string = string.replace(' de jun', '/06')
-    string = string.replace(' de jul', '/07')
-    string = string.replace(' de ago', '/08')
-    string = string.replace(' de set', '/09')
-    string = string.replace(' de out', '/10')
-    string = string.replace(' de nov', '/11')
-    string = string.replace(' de dez', '/12')
-    return string
 
-def save_new_values(driver, old_values):
-    time.sleep(1)    
-    values = old_values
-    # loads cells from active matrix
-    cells_ = []
-    outer_cells = driver.find_elements_by_class_name('tSjb9yj4lbb__cell')
-    for cell in outer_cells:
-        cells_.append(cell.find_element_by_xpath('.//*'))
-
-    cells = [[cell.text, cell.get_attribute('data-col'), cell.get_attribute('data-row')] for cell in cells_ if cell is not None and (cell.text == '' or '$' in cell.text)]
-    for cell in cells:
-        if cell[1] is None or cell[2] is None:
-            continue
-        cell[1] = int(cell[1])
-        cell[2] = int(cell[2])
-            
-        if cell[0] == '':
-            continue
+class SkyScraper():
+    def __init__(self, visible=True, date='today', days_to_search=70, days_travelling_min=0, days_travelling_max=14):
+        ''' date format => 2018-12-31 '''
+        if visible:
+            self.driver = webdriver.Firefox()
         else:
-            cell[0] = int(cell[0][2:])
+            self.driver = webdriver.PhantomJS()
+        self.results = {}
+        self.days_to_search = days_to_search
+        self.days_travelling_min = days_travelling_min
+        self.days_travelling_max = days_travelling_max
 
-        if cell[2] < cell[1] or cell[2] - cell[1] < days_travelling_min or cell[2] - cell[1] > days_travelling_max - 1:
-            continue
+        date_ = datetime.datetime.now().strftime(r"%Y-%m-%d")
+        if date != 'today':
+            date_ = date
+        self.url = "https://www.google.com/flights/?hl=pt#flt=/m/01hy_.JPA." + date_  + "*JPA./m/01hy_."  + date_ +  ";c:BRL;e:1;sd:1;t:f"
+        
+    def start_scrape(self):
+        self.driver.get(self.url)
+        self.driver.implicitly_wait(10)
+        self.driver.find_element_by_class_name('gws-flights-results__cheaper-dates-tip').click()
 
-        key = '{}-{}'.format(cell[1], cell[2]) 
-        if key in values:
-            if cell[0] > values[key]:
-                values[key] = cell[0]
-        else:
-            values[key] = cell[0]
-    #
-    return values
+        self.load_next_back_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[1]
+        self.load_previous_back_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__prev')[1]
+        self.load_next_go_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[0]
 
+    def update_search_results(self):
+        cells_ = []
+        outer_cells = self.driver.find_elements_by_class_name('tSjb9yj4lbb__cell')
+        for cell in outer_cells:
+            cells_.append(cell.find_element_by_xpath('.//*'))
 
-START_TIME = time.time()
-driver.get("https://www.google.com/flights/?hl=pt#flt=/m/01hy_./m/022pfm.2018-06-01*/m/022pfm./m/01hy_.2018-06-01;c:BRL;e:1;sd:1;t:f")
-driver.implicitly_wait(10)
+        cells = [[cell.text.replace('.', ''), cell.get_attribute('data-col'), cell.get_attribute('data-row')] for cell in cells_ if cell is not None and (cell.text == '' or '$' in cell.text)]
+        for cell in cells:
+            if cell[1] is None or cell[2] is None:
+                continue
+            cell[1] = int(cell[1])
+            cell[2] = int(cell[2])
+                
+            if cell[0] == '':
+                continue
+            else:
+                cell[0] = int(cell[0][2:])
 
-wrapper = driver.find_element_by_class_name('gws-flights-results__price-finder-tips-wrapper')
-driver.find_element_by_class_name('gws-flights-results__cheaper-dates-tip').click()
-load_next_back_element = driver.find_elements_by_class_name('gws-flights-pricefinder__next')[1]
-load_previous_back_element = driver.find_elements_by_class_name('gws-flights-pricefinder__prev')[1]
-load_next_go_element = driver.find_elements_by_class_name('gws-flights-pricefinder__next')[0]
+            if cell[2] < cell[1] or cell[2] - cell[1] < self.days_travelling_min or cell[2] - cell[1] > self.days_travelling_max - 1:
+                continue
 
-def load_next_matrix(direction):
-    ''' direction = ['up', 'down', 'right'] '''
+            key = '{}-{}'.format(cell[1], cell[2]) 
+            if key in self.results:
+                if cell[0] > self.results[key]:
+                    self.results[key] = cell[0]
+            else:
+                self.results[key] = cell[0]
 
-    if direction == 'right':
-        for _ in range(7):
-            load_next_go_element.click()
-    if direction == 'up':
-        for _ in range(7):
-            load_previous_back_element.click()      
-    if direction == 'down':
-        for _ in range(7):
-            load_next_back_element.click()
+    def load_next_data_matrix(self, direction):
+        ''' direction = ['up', 'down', 'right'] '''
 
-values = {}
+        if direction == 'right':
+            for _ in range(7):
+                self.load_next_go_element.click()
+        if direction == 'up':
+            for _ in range(7):
+                self.load_previous_back_element.click()      
+        if direction == 'down':
+            for _ in range(7):
+                self.load_next_back_element.click()
 
-step = 7
+    def get_cheapest_results(self):
+        cheapest_dates = []
+        cheapest_price = self.results[self.results.keys()[0]]
 
-days_to_search = 70
-days_travelling_min = 0
-days_travelling_max = 7
+        for key in self.results:
+            if self.results[key] < cheapest_price:
+                cheapest_dates = [key]
+                cheapest_price = self.results[key]
+            elif self.results[key] == cheapest_price:
+                cheapest_dates.append(key)
+        return cheapest_price, cheapest_dates
 
-#########
-save_new_values(driver, values)
-for _ in range(0, days_travelling_max, step):
-    load_next_matrix('down')
-    save_new_values(driver, values)
-
-for a in range(step, days_to_search, step):
-    load_next_matrix('right')
-    save_new_values(driver, values)
-    for _ in range(step, days_travelling_max, step):
-        load_next_matrix('up')
-        save_new_values(driver, values)
-    for _ in range(step, days_travelling_max, step):
-        load_next_matrix('down')
-    load_next_matrix('down')
-    save_new_values(driver, values)
-#########
-
-driver.close()
-
-# prints cheapest dates
-cheapest_dates = []
-cheapest_price = values[values.keys()[0]]
-
-for key in values:
-    if values[key] < cheapest_price:
-        cheapest_dates = [key]
-        cheapest_price = values[key]
-    elif values[key] == cheapest_price:
-        cheapest_dates.append(key)
-#
-
-# saves search as csv
-sort_key = lambda item: 1000 * int(item.split('-')[0]) + int(item.split('-')[1])
-keys = sorted(values.keys(), key=sort_key)
-print keys 
-with codecs.open(datetime.datetime.now().strftime(r'%m_%d_%Y-%H_%M_%S') + '.csv', 'wb', encoding='utf-8') as fd:
-    count = 0
-    for key in keys:
-        count += 1
-        fd.write(str(values[key]) + ', ')
-        print 'writing', str(values[key]), 'from', key
-        if count == days_travelling_max - days_travelling_min:
-            fd.write('\n')
+    def save_results(self, filename=None):
+        sort_key = lambda item: 1000 * int(item.split('-')[0]) + int(item.split('-')[1])
+        keys = sorted(self.results.keys(), key=sort_key)
+        if filename is None:
+            filename = datetime.datetime.now().strftime(r'%m_%d_%Y-%H_%M_%S') + '.csv'
+        if '.csv' not in filename:
+            filename = filename + '.csv'
+        with codecs.open(filename, 'wb', encoding='utf-8') as fd:
             count = 0
+            for key in keys:
+                count += 1
+                fd.write(str(self.results[key]) + ', ')
+                if count == self.days_travelling_max - self.days_travelling_min:
+                    fd.write('\n')
+                    count = 0
 
-print u'Preço mais baixo:', cheapest_price
-print u'Datas mais baratas:', json.dumps(cheapest_dates)
-print time.time() - START_TIME
+    def run(self, save_results=False, result_filename=None):
+        self.start_scrape()
+        self.update_search_results()
+        for _ in range(0, self.days_travelling_max, 7):
+            self.load_next_data_matrix('down')
+            self.update_search_results()
+
+        for _ in range(7, self.days_to_search, 7):
+            self.load_next_data_matrix('right')
+            self.update_search_results()
+            for _ in range(7, self.days_travelling_max, 7):
+                self.load_next_data_matrix('up')
+                self.update_search_results()
+            for _ in range(7, self.days_travelling_max, 7):
+                self.load_next_data_matrix('down')
+            self.load_next_data_matrix('down')
+            self.update_search_results()
+        if save_results:
+            self.save_results(filename=result_filename)
+        self.driver.close()
+        return self
+
+if __name__ == '__main__':
+    skyscraper = SkyScraper(date='2018-12-20', days_to_search=30, days_travelling_min=7, days_travelling_max=14).run(save_results=True)
+    print skyscraper.get_cheapest_results()
