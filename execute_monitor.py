@@ -3,6 +3,7 @@ import json
 import codecs
 import datetime
 import os
+import sys
 
 if __name__ == '__main__':
     flights = []
@@ -10,7 +11,7 @@ if __name__ == '__main__':
         flights = json.loads(fd.read()) 
 
     for index, flight in enumerate(flights):
-        skyscraper = SkyScraper(**flight)
+        skyscraper = SkyScraper(servered=False if len(sys.argv) < 2 else (sys.argv[1].lower()=='true'), **flight)
         flights[index]['results'][datetime.datetime.now().strftime(r'%m_%d_%Y-%H_%M_%S')] = skyscraper.get_cheapest_results()
         del skyscraper
 

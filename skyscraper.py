@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-RUNNING_ON_SERVER = False
-if RUNNING_ON_SERVER:
-    from pyvirtualdisplay import Display
-    Display(visible=0, size=(1024, 768)).start()
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
@@ -21,7 +17,7 @@ class Result():
         self.departure = int(departure) if departure is not None else -1
         self.arrival = int(arrival) if departure is not None else -1
         self.price = int(price[price.index(' '):].replace('.', '')) if price != '' else -1
-        
+
         self.departure_date = (now + datetime.timedelta(days=self.departure)) if departure is not None else None
         self.arrival_date = (now + datetime.timedelta(days=self.arrival)) if arrival is not None else None
 
@@ -32,7 +28,7 @@ class Result():
         return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d.%m"), arrival=self.arrival_date.strftime(r"%d.%m"))
 
 class SkyScraper():
-    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=14, days_travelling_min=7, days_travelling_max=14, **kwargs):
+    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=14, days_travelling_min=7, days_travelling_max=14, servered=False, **kwargs):
         self.results = {}
         self.days_to_search = days_to_search if type(days_to_search) == int else int(days_to_search)
         self.days_travelling_min = days_travelling_min if type(days_travelling_min) == int else int(days_travelling_min)
@@ -44,7 +40,10 @@ class SkyScraper():
         if date != 'today':
             date_ = date
         self.url = 'https://www.google.com/flights/?hl=pt#flt={origin}.{destination}.{date}*{destination}.{origin}.{date};c:BRL;e:1;sd:1;t:f'.format(origin=self.origin, destination=self.destination, date=date_)
-        
+
+	if servered:
+		from pyvirtualdisplay import Display
+		Display(visible=0, size=(1024, 728)).start()
     def start_scrape(self):
         self.driver = webdriver.Firefox()
         self.driver.get(self.url)
@@ -84,7 +83,7 @@ class SkyScraper():
                 self.load_next_departure_element.click()
         if direction == 'up':
             for _ in range(7):
-                self.load_previous_arrival_element.click()      
+                self.load_previous_arrival_element.click()
         if direction == 'down':
             for _ in range(7):
                 self.load_next_arrival_element.click()
@@ -92,7 +91,7 @@ class SkyScraper():
     def get_cheapest_results(self):
         if not self.results:
             self.run()
-            
+
         cheapest_dates = [self.results[self.results.keys()[0]]]
         cheapest_price = cheapest_dates[0].price
 
