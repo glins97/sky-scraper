@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from pyvirtualdisplay import Display
-Display(visible=0, size=(1024, 768)).start()
+RUNNING_ON_SERVER = False
+if RUNNING_ON_SERVER:
+    from pyvirtualdisplay import Display
+    Display(visible=0, size=(1024, 768)).start()
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
@@ -30,12 +32,11 @@ class Result():
         return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d.%m"), arrival=self.arrival_date.strftime(r"%d.%m"))
 
 class SkyScraper():
-    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=70, days_travelling_min=0, days_travelling_max=14):
-        self.driver = webdriver.Firefox()
+    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=14, days_travelling_min=7, days_travelling_max=14, **kwargs):
         self.results = {}
-        self.days_to_search = days_to_search
-        self.days_travelling_min = days_travelling_min
-        self.days_travelling_max = days_travelling_max
+        self.days_to_search = days_to_search if type(days_to_search) == int else int(days_to_search)
+        self.days_travelling_min = days_travelling_min if type(days_travelling_min) == int else int(days_travelling_min)
+        self.days_travelling_max = days_travelling_max if type(days_travelling_max) == int else int(days_travelling_max)
         self.origin = origin
         self.destination = destination
 
@@ -45,6 +46,7 @@ class SkyScraper():
         self.url = 'https://www.google.com/flights/?hl=pt#flt={origin}.{destination}.{date}*{destination}.{origin}.{date};c:BRL;e:1;sd:1;t:f'.format(origin=self.origin, destination=self.destination, date=date_)
         
     def start_scrape(self):
+        self.driver = webdriver.Firefox()
         self.driver.get(self.url)
         self.driver.implicitly_wait(10)
         self.driver.find_element_by_class_name('gws-flights-results__cheaper-dates-tip').click()
@@ -88,6 +90,9 @@ class SkyScraper():
                 self.load_next_arrival_element.click()
 
     def get_cheapest_results(self):
+        if not self.results:
+            self.run()
+            
         cheapest_dates = [self.results[self.results.keys()[0]]]
         cheapest_price = cheapest_dates[0].price
 
@@ -98,7 +103,7 @@ class SkyScraper():
             elif self.results[key].price == cheapest_price:
                 cheapest_dates.append(self.results[key])
 
-        return cheapest_price, cheapest_dates
+        return cheapest_price, [repr(result) for result in cheapest_dates]
 
     def save_results(self, filename=None):
         sort_key = lambda item: 1000 * int(item.split('-')[0]) + int(item.split('-')[1])
@@ -117,7 +122,7 @@ class SkyScraper():
                     count = 0
 
     def run(self, save_results=False, result_filename=None):
-	self.start_scrape()
+        self.start_scrape()
         self.update_search_results()
         for _ in range(0, self.days_travelling_max, 7):
             self.load_next_data_matrix('down')
