@@ -11,31 +11,45 @@ import codecs
 import time
 import datetime
 
+class Result():
+    def __init__(self, departure, arrival, price):
+        now = datetime.datetime.now()
+        self.departure = int(departure) if departure is not None else -1
+        self.arrival = int(arrival) if departure is not None else -1
+        self.price = int(price[price.index(' '):].replace('.', '')) if price != '' else -1
+        
+        self.departure_date = (now + datetime.timedelta(days=self.departure)) if departure is not None else None
+        self.arrival_date = (now + datetime.timedelta(days=self.arrival)) if arrival is not None else None
+
+    def __str__(self):
+        return '\n\tDeparture: {departure}\n\tArrival: {arrival}\n\tPrice: {price}'.format(departure=self.departure_date.strftime(r"%Y-%m-%d"), arrival=self.arrival_date.strftime(r"%Y-%m-%d"), price=self.price)
+
+    def __repr__(self):
+        return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d.%m"), arrival=self.arrival_date.strftime(r"%d.%m"))
+
 class SkyScraper():
-    def __init__(self, visible=True, date='today', days_to_search=70, days_travelling_min=0, days_travelling_max=14):
-        ''' date format => 2018-12-31 '''
-        if visible:
-            self.driver = webdriver.Firefox()
-        else:
-            self.driver = webdriver.PhantomJS()
+    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=70, days_travelling_min=0, days_travelling_max=14):
+        self.driver = webdriver.Firefox()
         self.results = {}
         self.days_to_search = days_to_search
         self.days_travelling_min = days_travelling_min
         self.days_travelling_max = days_travelling_max
+        self.origin = origin
+        self.destination = destination
 
         date_ = datetime.datetime.now().strftime(r"%Y-%m-%d")
         if date != 'today':
             date_ = date
-        self.url = "https://www.google.com/flights/?hl=pt#flt=/m/01hy_.JPA." + date_  + "*JPA./m/01hy_."  + date_ +  ";c:BRL;e:1;sd:1;t:f"
+        self.url = 'https://www.google.com/flights/?hl=pt#flt={origin}.{destination}.{date}*{destination}.{origin}.{date};c:BRL;e:1;sd:1;t:f'.format(origin=self.origin, destination=self.destination, date=date_)
         
     def start_scrape(self):
         self.driver.get(self.url)
         self.driver.implicitly_wait(10)
         self.driver.find_element_by_class_name('gws-flights-results__cheaper-dates-tip').click()
 
-        self.load_next_back_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[1]
-        self.load_previous_back_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__prev')[1]
-        self.load_next_go_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[0]
+        self.load_next_arrival_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[1]
+        self.load_previous_arrival_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__prev')[1]
+        self.load_next_departure_element = self.driver.find_elements_by_class_name('gws-flights-pricefinder__next')[0]
 
     def update_search_results(self):
         cells_ = []
@@ -43,51 +57,45 @@ class SkyScraper():
         for cell in outer_cells:
             cells_.append(cell.find_element_by_xpath('.//*'))
 
-        cells = [[cell.text.replace('.', ''), cell.get_attribute('data-col'), cell.get_attribute('data-row')] for cell in cells_ if cell is not None and (cell.text == '' or '$' in cell.text)]
-        for cell in cells:
-            if cell[1] is None or cell[2] is None:
-                continue
-            cell[1] = int(cell[1])
-            cell[2] = int(cell[2])
-                
-            if cell[0] == '':
-                continue
-            else:
-                cell[0] = int(cell[0][2:])
-
-            if cell[2] < cell[1] or cell[2] - cell[1] < self.days_travelling_min or cell[2] - cell[1] > self.days_travelling_max - 1:
+        results = [Result(cell.get_attribute('data-col'), cell.get_attribute('data-row'), cell.text) for cell in cells_ if cell is not None and (cell.text == '' or '$' in cell.text)]
+        for result in results:
+            if result.departure == -1 or result.arrival == -1 or result.price == -1:
                 continue
 
-            key = '{}-{}'.format(cell[1], cell[2]) 
+            if result.arrival< result.departure  or result.arrival - result.departure < self.days_travelling_min or result.arrival - result.departure > self.days_travelling_max - 1:
+                continue
+
+            key = '{}-{}'.format(result.departure, result.arrival) 
             if key in self.results:
-                if cell[0] > self.results[key]:
-                    self.results[key] = cell[0]
+                if result.price > self.results[key].price:
+                    self.results[key] = result
             else:
-                self.results[key] = cell[0]
+                self.results[key] = result
 
     def load_next_data_matrix(self, direction):
         ''' direction = ['up', 'down', 'right'] '''
 
         if direction == 'right':
             for _ in range(7):
-                self.load_next_go_element.click()
+                self.load_next_departure_element.click()
         if direction == 'up':
             for _ in range(7):
-                self.load_previous_back_element.click()      
+                self.load_previous_arrival_element.click()      
         if direction == 'down':
             for _ in range(7):
-                self.load_next_back_element.click()
+                self.load_next_arrival_element.click()
 
     def get_cheapest_results(self):
-        cheapest_dates = []
-        cheapest_price = self.results[self.results.keys()[0]]
+        cheapest_dates = [self.results[self.results.keys()[0]]]
+        cheapest_price = cheapest_dates[0].price
 
         for key in self.results:
-            if self.results[key] < cheapest_price:
-                cheapest_dates = [key]
-                cheapest_price = self.results[key]
-            elif self.results[key] == cheapest_price:
-                cheapest_dates.append(key)
+            if self.results[key].price < cheapest_price:
+                cheapest_dates = [self.results[key]]
+                cheapest_price = self.results[key].price
+            elif self.results[key].price == cheapest_price:
+                cheapest_dates.append(self.results[key])
+
         return cheapest_price, cheapest_dates
 
     def save_results(self, filename=None):
@@ -129,5 +137,5 @@ class SkyScraper():
         return self
 
 if __name__ == '__main__':
-    skyscraper = SkyScraper(date='2018-12-20', days_to_search=30, days_travelling_min=7, days_travelling_max=14).run(save_results=True)
+    skyscraper = SkyScraper(origin='BSB', destination='JPA', date='2018-12-12', days_to_search=70, days_travelling_min=7, days_travelling_max=14).run()
     print skyscraper.get_cheapest_results()
