@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pyvirtualdisplay import Display
+Display(visible=0, size=(1024, 768)).start()
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
@@ -115,7 +117,7 @@ class SkyScraper():
                     count = 0
 
     def run(self, save_results=False, result_filename=None):
-        self.start_scrape()
+	self.start_scrape()
         self.update_search_results()
         for _ in range(0, self.days_travelling_max, 7):
             self.load_next_data_matrix('down')
