@@ -1,27 +1,34 @@
+
 from skyscraper import SkyScraper
 import json
 import codecs
 import datetime
-import os
 import sys
-from mailer import Mailer
+import sendgrid
+from sendgrid.helpers.mail import *
+
+sg = sendgrid.SendGridAPIClient(apikey='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')
+from_email = Email('cron@gruponova.tech')
 
 if __name__ == '__main__':
     flights = []
     with codecs.open('results', 'rb', encoding='utf-8') as fd:
-        flights = json.loads(fd.read()) 
-
-    mailer = Mailer('skyscraper.result@gmail.com', 'qazxsaq01')
-    mailer.login()
+        flights = json.loads(fd.read())
 
     for index, flight in enumerate(flights):
         print 'Scraping for user {}...'.format(flight['user_email']),
         skyscraper = SkyScraper(servered=False if len(sys.argv) < 2 else (sys.argv[1].lower()=='true'), **flight)
         result = skyscraper.get_cheapest_results()
         print 'DONE'
-        flights[index]['results'][datetime.datetime.now().strftime(r'%m_%d_%Y-%H_%M_%S')] = result
-        mailer.send(flight['user_email'], u'Best price: R$ {:.2f}\n\nDates:\n{}'.format(result[0], '\n'.join(result[1])), u'Scraping results for {}'.format(flight['date']))
+        flights[index]['results'][datetime.datetime.now().strftime(r'%d_%m_%Y-%H_%M_%S')] = result
+
+	to_email = Email(flights[index]['user_email'])
+	subject = 'Results from {} to {} at {}'.format(flight['origin'], flight['destination'], datetime.datetime.strptime(flight['date'], '%Y-%m-%d').strftime('%d of %b, %Y'))
+	content = Content('text/plain', u'Best price: {:.2f}\n\n\n\nDates:\n\n{}'.format(result[0], '\n\n'.join(result[1])))
+	mail = Mail(from_email, subject, to_email, content)
+	response = sg.client.mail.send.post(request_body=mail.get())
         del skyscraper
 
     with codecs.open('results', 'wb', encoding='utf-8') as fd:
-        fd.write(json.dumps(flights, indent=2)) 
+        fd.write(json.dumps(flights, indent=2))
+

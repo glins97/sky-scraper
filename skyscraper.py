@@ -25,7 +25,7 @@ class Result():
         return '\n\tDeparture: {departure}\n\tArrival: {arrival}\n\tPrice: {price}'.format(departure=self.departure_date.strftime(r"%Y-%m-%d"), arrival=self.arrival_date.strftime(r"%Y-%m-%d"), price=self.price)
 
     def __repr__(self):
-        return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d.%m"), arrival=self.arrival_date.strftime(r"%d.%m"))
+        return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d %b"), arrival=self.arrival_date.strftime(r"%d %b"))
 
 class SkyScraper():
     def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=14, days_travelling_min=7, days_travelling_max=14, servered=False, **kwargs):
