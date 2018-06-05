@@ -7,7 +7,7 @@ import sys
 import sendgrid
 from sendgrid.helpers.mail import *
 
-sg = sendgrid.SendGridAPIClient(apikey='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')
+sg = sendgrid.SendGridAPIClient(apikey='API-KEY')
 from_email = Email('cron@gruponova.tech')
 
 if __name__ == '__main__':
