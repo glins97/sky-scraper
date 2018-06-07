@@ -28,7 +28,7 @@ class Result():
         return '{departure} - {arrival}'.format(departure=self.departure_date.strftime(r"%d %b"), arrival=self.arrival_date.strftime(r"%d %b"))
 
 class SkyScraper():
-    def __init__(self, origin='JPA', destination='GRU', date='today', days_to_search=14, days_travelling_min=7, days_travelling_max=14, servered=False, **kwargs):
+    def __init__(self, origin='BSB', destination='JPA', date='today', days_to_search=14, days_travelling_min=5, days_travelling_max=14, servered=False, **kwargs):
         self.results = {}
         self.days_to_search = days_to_search if type(days_to_search) == int else int(days_to_search)
         self.days_travelling_min = days_travelling_min if type(days_travelling_min) == int else int(days_travelling_min)
@@ -44,6 +44,7 @@ class SkyScraper():
 	if servered:
 		from pyvirtualdisplay import Display
 		Display(visible=0, size=(1024, 728)).start()
+
     def start_scrape(self):
         self.driver = webdriver.Firefox()
         self.driver.get(self.url)
@@ -102,7 +103,7 @@ class SkyScraper():
             elif self.results[key].price == cheapest_price:
                 cheapest_dates.append(self.results[key])
 
-        return cheapest_price, [repr(result) for result in cheapest_dates]
+        return cheapest_price, sorted([repr(result) for result in cheapest_dates])
 
     def save_results(self, filename=None):
         sort_key = lambda item: 1000 * int(item.split('-')[0]) + int(item.split('-')[1])
@@ -143,5 +144,5 @@ class SkyScraper():
         return self
 
 if __name__ == '__main__':
-    skyscraper = SkyScraper(origin='BSB', destination='JPA', date='2018-12-12', days_to_search=70, days_travelling_min=7, days_travelling_max=14).run()
+    skyscraper = SkyScraper(servered=True, origin='BSB', destination='JPA', date='2018-12-12', days_to_search=7, days_travelling_min=0, days_travelling_max=7).run()
     print skyscraper.get_cheapest_results()

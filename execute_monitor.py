@@ -7,7 +7,7 @@ import sys
 import sendgrid
 from sendgrid.helpers.mail import *
 
-sg = sendgrid.SendGridAPIClient(apikey='API-KEY')
+sg = sendgrid.SendGridAPIClient(apikey='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')
 from_email = Email('cron@gruponova.tech')
 
 if __name__ == '__main__':
@@ -22,9 +22,10 @@ if __name__ == '__main__':
         print 'DONE'
         flights[index]['results'][datetime.datetime.now().strftime(r'%d_%m_%Y-%H_%M_%S')] = result
 
+	last_results = [str(flight['results'][result_key][0]) for result_key in sorted(flight['results'].keys())]
 	to_email = Email(flights[index]['user_email'])
-	subject = 'Results from {} to {} at {}'.format(flight['origin'], flight['destination'], datetime.datetime.strptime(flight['date'], '%Y-%m-%d').strftime('%d of %b, %Y'))
-	content = Content('text/plain', u'Best price: {:.2f}\n\n\n\nDates:\n\n{}'.format(result[0], '\n\n'.join(result[1])))
+	subject = 'Results from {} to {} at {}'.format(flight['origin'], flight['destination'], (datetime.datetime.strptime(flight['date'], '%Y-%m-%d') if flight['date'] != 'today' else datetime.datetime.now()).strftime('%d of %b, %Y'))
+	content = Content('text/plain', u'Last prices: R$ {}\n\nBest price: R$ {:.2f}\n\n\n\nDates:\n\n{}'.format(', '.join(last_results[:5]), result[0], '\n\n'.join(result[1][:7])))
 	mail = Mail(from_email, subject, to_email, content)
 	response = sg.client.mail.send.post(request_body=mail.get())
         del skyscraper
